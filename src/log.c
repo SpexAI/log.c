@@ -21,6 +21,7 @@
  */
 
 #include "log.h"
+#include <assert.h>
 
 #define MAX_CALLBACKS 32
 
@@ -49,6 +50,7 @@ static const char *level_colors[] = {"\x1b[94m", "\x1b[36m", "\x1b[32m",
 static void stdout_callback(log_Event *ev) {
   char buf[16];
   buf[strftime(buf, sizeof(buf), "%H:%M:%S", ev->time)] = '\0';
+  assert(ev->udata);
 #ifdef LOG_USE_COLOR
   fprintf(ev->udata, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ", buf,
           level_colors[ev->level], level_strings[ev->level], ev->file,
@@ -64,6 +66,7 @@ static void stdout_callback(log_Event *ev) {
 
 static void file_callback(log_Event *ev) {
   char buf[64];
+  assert(ev->udata);
   buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ev->time)] = '\0';
   fprintf(ev->udata, "%s %-5s %s:%d: ", buf, level_strings[ev->level], ev->file,
           ev->line);
@@ -98,6 +101,8 @@ void log_set_quiet(bool enable) { L.quiet = enable; }
 int log_add_callback(log_LogFn fn, void *udata, int level) {
   for (int i = 0; i < MAX_CALLBACKS; i++) {
     if (!L.callbacks[i].fn) {
+      if (!udata)
+        udata = stderr;
       L.callbacks[i] = (Callback){fn, udata, level};
       return 0;
     }
@@ -114,6 +119,7 @@ static void init_event(log_Event *ev, void *udata) {
     time_t t = time(NULL);
     ev->time = localtime(&t);
   }
+  assert(udata);
   ev->udata = udata;
 }
 
@@ -125,6 +131,8 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
       .level = level,
   };
 
+  if (!fmt)
+    return;
   lock();
 
   if (!L.quiet && level >= L.level) {
@@ -137,6 +145,8 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
   for (int i = 0; i < MAX_CALLBACKS && L.callbacks[i].fn; i++) {
     Callback *cb = &L.callbacks[i];
     if (level >= cb->level) {
+      if (!cb->udata)
+        cb->udata = stderr;
       init_event(&ev, cb->udata);
       va_start(ev.ap, fmt);
       cb->fn(&ev);
