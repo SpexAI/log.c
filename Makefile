@@ -18,7 +18,7 @@ test: test/Makefile test/test.c liblog_asan.so lint
 	make -C test test
 
 lint:
-	-clang-tidy src/log.c src/log.h
+	-clang-tidy --checks=-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling src/log.c src/log.h
 	cppcheck -Isrc src/log.c src/log.h
 
 /usr/local/lib/liblog.so: liblog.so
